@@ -39,6 +39,15 @@ class PairRddOpsSpec extends FunSpec with Matchers with SparkLocal {
       }
     }
 
+    it("runs keys - transformation so number of keys could be large") {
+      withSparkContext { sc =>
+        val rdd: RDD[(String, Int)] = createPairRdd(events)((event: Event) => (event.organizer, event.budget))(sc)
+        val keys: RDD[String] = rdd.keys
+        //NOTE: keys could have duplicates
+        keys.collect() should contain theSameElementsAs Array("org1", "org2", "org1")
+      }
+    }
+
     it("computes average budget per event organizer") {
       withSparkContext { sc =>
         val rdd: RDD[(String, Event)] = createPairRdd(events)(event => (event.organizer, event))(sc)
