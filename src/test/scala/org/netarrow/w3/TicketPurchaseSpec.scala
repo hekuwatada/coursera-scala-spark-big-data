@@ -17,14 +17,18 @@ class TicketPurchaseSpec extends FunSpec with Matchers with SparkLocal {
       TicketPurchase(3, "destC", 175),
       TicketPurchase(3, "destD", 120)
     )
-    
+
     it("calculates how many trips were made and how much money was spent by each visitor") {
       withSparkContext { sc =>
         val purchasesRdd: RDD[TicketPurchase] = sc.parallelize(purchases)
 
-        val pricePairRdd: RDD[(Int, Double)] = purchasesRdd.map(p => (p.customerId, p.price))
-        val groupedPrice: RDD[(Int, Iterable[Double])] = pricePairRdd.groupByKey()
-        val tripsCost: RDD[(Int, (Int, Double))] = groupedPrice.mapValues(p => (p.size, p.sum))
+        val tripPricePairRdd: RDD[(Int, (Int, Double))] = purchasesRdd.map(p => (p.customerId, (1, p.price)))
+
+        // reduceByKey() - reduces values on the same node first, then across nodes per key
+        // therefore optimized and no need to groupByKey()
+        val tripsCost: RDD[(Int, (Int, Double))] = tripPricePairRdd
+            .reduceByKey { case ((xTrips, xCost), (yTrips, yCost)) => (xTrips + yTrips, xCost + yCost) }
+
         tripsCost.collect() should contain theSameElementsAs Map(1 -> (3, 200), 2 -> (2, 220), 3 -> (2, 295))
       }
     }
