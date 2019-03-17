@@ -16,17 +16,41 @@ class PairRddOpsSpec extends FunSpec with Matchers with SparkLocal {
     sc.parallelize(col).map(f)
 
   describe("Pair RDD operations") {
+    val events = Seq(
+      Event("org1", "event1", 100),
+      Event("org2", "event2", 250),
+      Event("org1", "event3", 700)
+    )
+
     it("runs reduceByKey") {
       withSparkContext { sc =>
-        val events = Seq(
-          Event("org1", "event1", 100),
-          Event("org2", "event2", 250),
-          Event("org1", "event3", 700)
-        )
         val rdd: RDD[(String, Int)] = createPairRdd(events)((event: Event) => (event.organizer, event.budget))(sc)
         val reducedRdd: RDD[(String, Int)] = rdd.reduceByKey(_ + _)
         val costs: Array[(String, Int)] = reducedRdd.collect()
         costs should contain theSameElementsAs Array("org1" -> 800, "org2" -> 250)
+      }
+    }
+
+    it("runs countByKey - action") {
+      withSparkContext { sc =>
+        val rdd: RDD[(String, Int)] = createPairRdd(events)((event: Event) => (event.organizer, event.budget))(sc)
+        val costs: collection.Map[String, Long] = rdd.countByKey()
+        costs should contain theSameElementsAs Map("org1" -> 2, "org2" -> 1)
+      }
+    }
+
+    it("computes average budget per event organizer") {
+      withSparkContext { sc =>
+        val rdd: RDD[(String, Event)] = createPairRdd(events)(event => (event.organizer, event))(sc)
+        // (total cost, total numb of events)
+        val reducedRdd: RDD[(String, (Int, Int))] = rdd
+            .mapValues(event => (event.budget, 1))
+            .reduceByKey { case ((xBudget, xNum), (yBudget, yNum)) => (xBudget + yBudget, xNum + yNum) }
+
+        val average: RDD[(String, Double)] = reducedRdd
+            .mapValues { case (cost, eventCount) =>  cost / eventCount }
+
+        average.collect() should contain theSameElementsAs Array("org1" -> 400, "org2" -> 250)
       }
     }
   }
