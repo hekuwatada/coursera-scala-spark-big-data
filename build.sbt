@@ -33,7 +33,7 @@ val testLibs = Seq(
 fork in (Test, run) := true
 
 //TODO: review parallel execution of tests
-//parallelExecution in Test := false
+parallelExecution in Test := false
 
 lazy val root = (project in file("."))
   .configs(IntegrationTest)
