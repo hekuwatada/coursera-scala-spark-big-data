@@ -62,6 +62,15 @@ class PairRddOpsSpec extends FunSpec with Matchers with SparkLocal {
         average.collect() should contain theSameElementsAs Array("org1" -> 400, "org2" -> 250)
       }
     }
+
+    it("counts unique number of event organizers") {
+      withSparkContext { sc =>
+        val rdd: RDD[(String, Int)] = createPairRdd(events)((event: Event) => (event.organizer, event.budget))(sc)
+        val uniqueKeys: RDD[String] = rdd.keys.distinct()
+        uniqueKeys.collect() should contain theSameElementsAs Array("org1", "org2")
+        uniqueKeys.count() shouldBe 2
+      }
+    }
   }
 
 }
