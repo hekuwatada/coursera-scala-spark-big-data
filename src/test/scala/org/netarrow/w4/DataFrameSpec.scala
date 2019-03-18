@@ -73,5 +73,35 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
         rows.size shouldBe 2
       }
     }
+
+    it("finds and sorts employees by id who live in a particular city") {
+      withSparkSession { ss =>
+        import ss.implicits._
+
+        val employees = Seq(
+          Employee(1, "fname1", "lname1", 21, "London"),
+          Employee(2, "fname2", "lname2", 30, "Paris"),
+          Employee(3, "fname3", "lname3", 27, "London"),
+          Employee(4, "fname4", "lname4", 40, "New York"),
+          Employee(5, "fname5", "lname5", 32, "New York"),
+          Employee(5, "fname5", "lname5", 19, "London")
+        )
+
+        val df: DataFrame = ss.sparkContext.parallelize(employees).toDF()
+        df.show()
+
+        df.createOrReplaceTempView("employees")
+        def findEmployees(city: String): DataFrame =
+          ss.sql(s"""SELECT id, lname FROM employees WHERE city == "$city" ORDER BY id""")
+
+        val employees1 = findEmployees("New York")
+        employees1.show()
+        employees1.collect().size shouldBe 2
+
+        val employees2 = findEmployees("London")
+        employees2.show()
+        employees2.collect().size shouldBe 3
+      }
+    }
   }
 }
