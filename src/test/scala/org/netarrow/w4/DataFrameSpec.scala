@@ -3,7 +3,7 @@ package org.netarrow.w4
 import java.net.URL
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.{DataFrame, Dataset, Encoders, Row}
 import org.netarrow.testutil.SparkLocal
 import org.scalatest.{FunSpec, Matchers}
 
@@ -53,7 +53,25 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
         val df: DataFrame = ss.read.json(jsonFile.getFile)
         val rows: Array[Row] = df.collect()
 
+        println(df.show())
+
         rows.size shouldBe 3
+      }
+    }
+
+    it("reads objects from a file") {
+      withSparkSession { ss =>
+        //NOTE: JSON must be line delimited format
+        val jsonFile: URL = getClass.getClassLoader.getResource("persons.json")
+
+        import ss.implicits._
+        val schema = Encoders.product[Person].schema
+
+        val ds: Dataset[Person] = ss.read.schema(schema)
+          .json(jsonFile.getFile)
+          .as[Person]
+
+        ds.first shouldBe Person(1, "foo", "London", "United Kingdom")
       }
     }
   }
