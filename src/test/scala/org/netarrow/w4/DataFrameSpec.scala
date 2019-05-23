@@ -7,8 +7,13 @@ import org.apache.spark.sql.{DataFrame, Dataset, Encoders, Row}
 import org.netarrow.testutil.SparkLocal
 import org.scalatest.{FunSpec, Matchers}
 
+import scala.collection.immutable
+
 class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
   override def appName: String = "DataFrameSpec"
+
+  //NOTE: JSON must be line delimited format
+  val jsonFile: URL = getClass.getClassLoader.getResource("persons.json")
 
   describe("DataFrame") {
     it("creates DataFrame from RDD with column names") {
@@ -48,8 +53,6 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
 
     it("creates DataFrame from a file") {
       withSparkSession { ss =>
-        //NOTE: JSON must be line delimited format
-        val jsonFile: URL = getClass.getClassLoader.getResource("persons.json")
         val df: DataFrame = ss.read.json(jsonFile.getFile)
         val rows: Array[Row] = df.collect()
 
@@ -59,19 +62,30 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
       }
     }
 
-    it("reads objects from a file") {
+    it("reads Person data set from a file") {
       withSparkSession { ss =>
-        //NOTE: JSON must be line delimited format
-        val jsonFile: URL = getClass.getClassLoader.getResource("persons.json")
-
         import ss.implicits._
         val schema = Encoders.product[Person].schema
 
-        val ds: Dataset[Person] = ss.read.schema(schema)
+        val ds: Dataset[Person] = ss.read
+          .schema(schema)
           .json(jsonFile.getFile)
           .as[Person]
 
         ds.first shouldBe Person(1, "foo", "London", "United Kingdom")
+      }
+    }
+
+    it("reads slimmed down objects from a file") {
+      withSparkSession { ss =>
+        import ss.implicits._
+
+        val ds: Dataset[SlimPerson] = ss.read
+          .json(jsonFile.getFile)
+          .as[SlimPerson]
+
+        val ret: immutable.Seq[SlimPerson] = ds.collect().toList
+        ret shouldBe List(SlimPerson("foo"), SlimPerson("bar"), SlimPerson("hoge"))
       }
     }
   }
@@ -79,7 +93,6 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
   describe("DataFrame with SQL") {
     it("accepts SQL queries") {
       withSparkSession { ss =>
-        val jsonFile: URL = getClass.getClassLoader.getResource("persons.json")
         val df: DataFrame = ss.read.json(jsonFile.getFile)
 
         // Register temporary view
