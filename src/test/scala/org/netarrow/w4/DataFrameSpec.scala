@@ -13,7 +13,9 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
   override def appName: String = "DataFrameSpec"
 
   //NOTE: JSON must be line delimited format
-  val jsonFile: URL = getClass.getClassLoader.getResource("persons.json")
+  def getFile(filename: String): URL = getClass.getClassLoader.getResource(filename)
+
+  val jsonFile: URL = getFile("persons.json")
 
   describe("DataFrame") {
     it("creates DataFrame from RDD with column names") {
@@ -86,6 +88,38 @@ class DataFrameSpec extends FunSpec with Matchers with SparkLocal {
 
         val ret: immutable.Seq[SlimPerson] = ds.collect().toList
         ret shouldBe List(SlimPerson("foo"), SlimPerson("bar"), SlimPerson("hoge"))
+      }
+    }
+
+    it("reads nested objects from a file") {
+      withSparkSession { ss =>
+        import ss.implicits._
+
+        val jsonFile: URL = getFile("nested.json")
+        // nested objects work out of box unless there is Int field
+        // schema must be for the whole object, not just the object that contains Int
+        val schema = Encoders.product[RichPerson].schema
+        val ds: Dataset[RichPerson] = ss.read
+            .schema(schema)
+          .json(jsonFile.getFile)
+          .as[RichPerson]
+
+        val ret: RichPerson = ds.first
+        ret shouldBe RichPerson("hoge", Address(9, "Tokyo", "Japan"), 123.45)
+      }
+    }
+
+    it("reads objects with double from a file") {
+      withSparkSession { ss =>
+        import ss.implicits._
+
+        val jsonFile: URL = getFile("nested.json")
+        val ds: Dataset[WorkingPerson] = ss.read
+          .json(jsonFile.getFile)
+          .as[WorkingPerson]
+
+        val ret: WorkingPerson = ds.first()
+        ret shouldBe WorkingPerson("hoge", 123.45) // serializing double works out of box
       }
     }
   }
